@@ -13,6 +13,7 @@ const express_rate_limit_1 = require("express-rate-limit");
 const helmet_1 = __importDefault(require("helmet"));
 const pino_http_1 = __importDefault(require("pino-http"));
 const config_1 = require("./config");
+const local_api_1 = require("./local-api");
 const pool_1 = require("./db/pool");
 const errors_1 = require("./errors");
 const logger_1 = require("./logger");
@@ -72,7 +73,7 @@ const resourceStatuses = {
     "quality-checks": ["pending", "completed", "in_correction"],
     repairs: ["requested", "scheduled", "in_progress", "completed", "cancelled"],
 };
-function createApp(authenticateRequest = security_1.authenticate) {
+function createApp(authenticateRequest = security_1.authenticate, localMode = false, localStore) {
     const app = (0, express_1.default)();
     app.disable("x-powered-by");
     app.use((0, helmet_1.default)());
@@ -92,7 +93,12 @@ function createApp(authenticateRequest = security_1.authenticate) {
                 method: request.method,
                 path: new URL(request.url, "http://localhost").pathname,
             }),
+            res: (response) => ({
+                statusCode: response.statusCode,
+            }),
         },
+        customSuccessMessage: (request, response, responseTime) => `${request.method} ${new URL(request.url, "http://localhost").pathname} ${response.statusCode} ${Math.round(responseTime)}ms`,
+        customErrorMessage: (request, response) => `${request.method} ${new URL(request.url, "http://localhost").pathname} ${response.statusCode} failed`,
     }));
     const loginLimiter = (0, express_rate_limit_1.rateLimit)({
         windowMs: 15 * 60 * 1000,
@@ -106,6 +112,14 @@ function createApp(authenticateRequest = security_1.authenticate) {
             },
         },
     });
+    if (localMode) {
+        app.get("/health", (_request, response) => response.json({ status: "ok" }));
+        app.use("/api", (0, local_api_1.createLocalApi)(loginLimiter, localStore));
+        app.use("/api", errors_1.notFound);
+        app.use(errors_1.notFound);
+        app.use(errors_1.errorHandler);
+        return app;
+    }
     const api = express_1.default.Router();
     api.post("/auth/login", loginLimiter, asyncRoute(async (request, response) => {
         const origin = request.get("origin");

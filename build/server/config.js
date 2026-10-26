@@ -21,6 +21,9 @@ const envSchema = zod_1.z.object({
         .default("cocacars_admin"),
     MYSQL_USER: zod_1.z.string().default("cocacars_app"),
     MYSQL_PASSWORD: zod_1.z.string().default(""),
+    LOCAL_DATA_FILE: zod_1.z.string().default("data/local-db.json"),
+    LOCAL_ADMIN_EMAIL: zod_1.z.string().email().default("admin@gmail.com"),
+    LOCAL_ADMIN_PASSWORD: zod_1.z.string().min(1).default("Admin@123"),
     COOKIE_SECURE: zod_1.z.enum(["true", "false"]).default("false"),
     COOKIE_SAME_SITE: zod_1.z.enum(["strict", "lax", "none"]).default("strict"),
     LOG_LEVEL: zod_1.z

@@ -14,6 +14,8 @@ import pinoHttp from "pino-http";
 import { z } from "zod";
 import type { AuthUser, ResourceName, Role } from "../shared/contracts";
 import { config } from "./config";
+import type { LocalJsonStore } from "./db/local-store";
+import { createLocalApi } from "./local-api";
 import { pool } from "./db/pool";
 import { AppError, errorHandler, notFound } from "./errors";
 import { logger } from "./logger";
@@ -130,6 +132,8 @@ const resourceStatuses: Partial<Record<ResourceName, readonly string[]>> = {
 
 export function createApp(
   authenticateRequest: (request: Request) => Promise<AuthUser> = authenticate,
+  localMode = false,
+  localStore?: LocalJsonStore,
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -153,7 +157,14 @@ export function createApp(
           method: request.method,
           path: new URL(request.url, "http://localhost").pathname,
         }),
+        res: (response) => ({
+          statusCode: response.statusCode,
+        }),
       },
+      customSuccessMessage: (request, response, responseTime) =>
+        `${request.method} ${new URL(request.url, "http://localhost").pathname} ${response.statusCode} ${Math.round(responseTime)}ms`,
+      customErrorMessage: (request, response) =>
+        `${request.method} ${new URL(request.url, "http://localhost").pathname} ${response.statusCode} failed`,
     }),
   );
 
@@ -169,6 +180,17 @@ export function createApp(
       },
     },
   });
+
+  if (localMode) {
+    app.get("/health", (_request, response) =>
+      response.json({ status: "ok" }),
+    );
+    app.use("/api", createLocalApi(loginLimiter, localStore));
+    app.use("/api", notFound);
+    app.use(notFound);
+    app.use(errorHandler);
+    return app;
+  }
 
   const api = express.Router();
   api.post(
