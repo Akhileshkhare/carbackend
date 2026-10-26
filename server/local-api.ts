@@ -12,6 +12,7 @@ import {
   type LocalRecord,
 } from "./db/local-store";
 import { logger } from "./logger";
+import { seedLocalDemoData } from "./db/demo-data";
 import { resourceConfig, isResource, schemaFor, writableResources } from "./resources";
 import {
   clearSessionCookies,
@@ -20,6 +21,7 @@ import {
   SESSION_COOKIE,
   setSessionCookies,
   CSRF_COOKIE,
+  bearerSessionToken,
 } from "./security";
 import {
   listQuerySchema,
@@ -172,6 +174,10 @@ export function createLocalApi(
   store = localStore,
 ): express.Router {
   const api = express.Router();
+  api.use((_request, response, next) => {
+    response.setHeader("Cache-Control", "no-store");
+    next();
+  });
 
   api.post(
     "/auth/login",
@@ -217,13 +223,20 @@ export function createLocalApi(
         });
       });
       setSessionCookies(response, rawId, csrf, input.rememberMe);
-      response.status(200).json({ user: localAdminUser(admin), csrfToken: csrf });
+      response.status(200).json({
+        user: localAdminUser(admin),
+        csrfToken: csrf,
+        sessionToken: rawId,
+      });
     }),
   );
 
   api.use(
     asyncRoute(async (request, _response, next) => {
-      const rawId = request.cookies?.[SESSION_COOKIE] as string | undefined;
+      const bearerToken = bearerSessionToken(request);
+      const rawId =
+        bearerToken ??
+        (request.cookies?.[SESSION_COOKIE] as string | undefined);
       if (!rawId || !/^[a-f0-9]{64}$/.test(rawId)) {
         throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
       }
@@ -245,10 +258,10 @@ export function createLocalApi(
         const cookieCsrf = request.cookies?.[CSRF_COOKIE] as string | undefined;
         const headerCsrf = request.get("x-csrf-token");
         if (
-          !cookieCsrf ||
           !headerCsrf ||
-          cookieCsrf !== session.session.csrfToken ||
-          headerCsrf !== session.session.csrfToken
+          headerCsrf !== session.session.csrfToken ||
+          (!bearerToken &&
+            (!cookieCsrf || cookieCsrf !== session.session.csrfToken))
         ) {
           throw new AppError(
             403,
@@ -259,7 +272,19 @@ export function createLocalApi(
       }
       request.authUser = localAdminUser(session.admin);
       request.authCsrfToken = session.session.csrfToken;
+      request.authSessionToken = rawId;
       next();
+    }),
+  );
+
+  api.post(
+    "/demo-data/seed",
+    asyncRoute(async (request, response) => {
+      if (currentUser(request).role !== "admin") {
+        throw new AppError(403, "FORBIDDEN", "Only administrators can load demo data.");
+      }
+      await seedLocalDemoData(store);
+      response.json({ message: "Synthetic demo data is ready." });
     }),
   );
 
@@ -267,6 +292,8 @@ export function createLocalApi(
     response.json({
       user: currentUser(request),
       csrfToken: request.authCsrfToken ?? "",
+      sessionToken:
+        request.authSessionToken ?? bearerSessionToken(request) ?? "",
     }),
   );
 
@@ -321,7 +348,9 @@ export function createLocalApi(
   api.post(
     "/auth/logout",
     asyncRoute(async (request, response) => {
-      const rawId = request.cookies?.[SESSION_COOKIE] as string | undefined;
+      const rawId =
+        bearerSessionToken(request) ??
+        (request.cookies?.[SESSION_COOKIE] as string | undefined);
       if (rawId) {
         await store.update((database) => {
           database.sessions = database.sessions.filter(

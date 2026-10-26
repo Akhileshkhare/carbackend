@@ -5,6 +5,7 @@ exports.hashToken = hashToken;
 exports.setSessionCookies = setSessionCookies;
 exports.clearSessionCookies = clearSessionCookies;
 exports.createOpaqueToken = createOpaqueToken;
+exports.bearerSessionToken = bearerSessionToken;
 exports.createSession = createSession;
 exports.authenticate = authenticate;
 exports.requireRoles = requireRoles;
@@ -51,6 +52,10 @@ function clearSessionCookies(response) {
 function createOpaqueToken() {
     return (0, node_crypto_1.randomBytes)(32).toString("hex");
 }
+function bearerSessionToken(request) {
+    const match = request.get("authorization")?.match(/^Bearer ([a-f0-9]{64})$/i);
+    return match?.[1];
+}
 async function createSession(adminId, rememberMe) {
     const id = createOpaqueToken();
     const csrf = createOpaqueToken();
@@ -60,7 +65,9 @@ async function createSession(adminId, rememberMe) {
     return { id, csrf };
 }
 async function authenticate(request) {
-    const rawId = request.cookies?.[exports.SESSION_COOKIE];
+    const bearerToken = bearerSessionToken(request);
+    const rawId = bearerToken ??
+        request.cookies?.[exports.SESSION_COOKIE];
     if (!rawId || !/^[a-f0-9]{64}$/.test(rawId)) {
         throw new errors_1.AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
@@ -73,10 +80,9 @@ async function authenticate(request) {
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
         const cookieCsrf = request.cookies?.[exports.CSRF_COOKIE];
         const headerCsrf = request.get("x-csrf-token");
-        if (!cookieCsrf ||
-            !headerCsrf ||
-            cookieCsrf !== session.csrf_token ||
-            headerCsrf !== session.csrf_token) {
+        if (!headerCsrf ||
+            headerCsrf !== session.csrf_token ||
+            (!bearerToken && (!cookieCsrf || cookieCsrf !== session.csrf_token))) {
             throw new errors_1.AppError(403, "CSRF_INVALID", "The request could not be verified. Refresh and try again.");
         }
     }
@@ -87,6 +93,7 @@ async function authenticate(request) {
         role: session.role,
     };
     request.authCsrfToken = session.csrf_token;
+    request.authSessionToken = rawId;
     return request.authUser;
 }
 function requireRoles(...roles) {

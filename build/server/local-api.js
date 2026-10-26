@@ -12,6 +12,7 @@ const config_1 = require("./config");
 const errors_1 = require("./errors");
 const local_store_1 = require("./db/local-store");
 const logger_1 = require("./logger");
+const demo_data_1 = require("./db/demo-data");
 const resources_1 = require("./resources");
 const security_1 = require("./security");
 const validation_1 = require("./validation");
@@ -113,6 +114,10 @@ function duplicateRecord(database, resource, values, exceptId) {
 }
 function createLocalApi(loginLimiter, store = local_store_1.localStore) {
     const api = express_1.default.Router();
+    api.use((_request, response, next) => {
+        response.setHeader("Cache-Control", "no-store");
+        next();
+    });
     api.post("/auth/login", loginLimiter, asyncRoute(async (request, response) => {
         const origin = request.get("origin");
         let validOrigin = false;
@@ -144,10 +149,16 @@ function createLocalApi(loginLimiter, store = local_store_1.localStore) {
             });
         });
         (0, security_1.setSessionCookies)(response, rawId, csrf, input.rememberMe);
-        response.status(200).json({ user: (0, local_store_1.localAdminUser)(admin), csrfToken: csrf });
+        response.status(200).json({
+            user: (0, local_store_1.localAdminUser)(admin),
+            csrfToken: csrf,
+            sessionToken: rawId,
+        });
     }));
     api.use(asyncRoute(async (request, _response, next) => {
-        const rawId = request.cookies?.[security_1.SESSION_COOKIE];
+        const bearerToken = (0, security_1.bearerSessionToken)(request);
+        const rawId = bearerToken ??
+            request.cookies?.[security_1.SESSION_COOKIE];
         if (!rawId || !/^[a-f0-9]{64}$/.test(rawId)) {
             throw new errors_1.AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
         }
@@ -164,20 +175,29 @@ function createLocalApi(loginLimiter, store = local_store_1.localStore) {
         if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
             const cookieCsrf = request.cookies?.[security_1.CSRF_COOKIE];
             const headerCsrf = request.get("x-csrf-token");
-            if (!cookieCsrf ||
-                !headerCsrf ||
-                cookieCsrf !== session.session.csrfToken ||
-                headerCsrf !== session.session.csrfToken) {
+            if (!headerCsrf ||
+                headerCsrf !== session.session.csrfToken ||
+                (!bearerToken &&
+                    (!cookieCsrf || cookieCsrf !== session.session.csrfToken))) {
                 throw new errors_1.AppError(403, "CSRF_INVALID", "The request could not be verified. Refresh and try again.");
             }
         }
         request.authUser = (0, local_store_1.localAdminUser)(session.admin);
         request.authCsrfToken = session.session.csrfToken;
+        request.authSessionToken = rawId;
         next();
+    }));
+    api.post("/demo-data/seed", asyncRoute(async (request, response) => {
+        if (currentUser(request).role !== "admin") {
+            throw new errors_1.AppError(403, "FORBIDDEN", "Only administrators can load demo data.");
+        }
+        await (0, demo_data_1.seedLocalDemoData)(store);
+        response.json({ message: "Synthetic demo data is ready." });
     }));
     api.get("/auth/me", (request, response) => response.json({
         user: currentUser(request),
         csrfToken: request.authCsrfToken ?? "",
+        sessionToken: request.authSessionToken ?? (0, security_1.bearerSessionToken)(request) ?? "",
     }));
     api.put("/auth/profile", asyncRoute(async (request, response) => {
         const user = currentUser(request);
@@ -211,7 +231,8 @@ function createLocalApi(loginLimiter, store = local_store_1.localStore) {
         response.json({ user: updatedUser });
     }));
     api.post("/auth/logout", asyncRoute(async (request, response) => {
-        const rawId = request.cookies?.[security_1.SESSION_COOKIE];
+        const rawId = (0, security_1.bearerSessionToken)(request) ??
+            request.cookies?.[security_1.SESSION_COOKIE];
         if (rawId) {
             await store.update((database) => {
                 database.sessions = database.sessions.filter((session) => session.id !== (0, security_1.hashToken)(rawId));

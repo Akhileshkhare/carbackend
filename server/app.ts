@@ -17,6 +17,7 @@ import { config } from "./config";
 import type { LocalJsonStore } from "./db/local-store";
 import { createLocalApi } from "./local-api";
 import { pool } from "./db/pool";
+import { seedMysqlDemoData } from "./db/demo-data";
 import { AppError, errorHandler, notFound } from "./errors";
 import { logger } from "./logger";
 import {
@@ -32,6 +33,7 @@ import {
   hashToken,
   requireRoles,
   SESSION_COOKIE,
+  bearerSessionToken,
   setSessionCookies,
 } from "./security";
 import {
@@ -137,7 +139,12 @@ export function createApp(
 ) {
   const app = express();
   app.disable("x-powered-by");
+  app.disable("etag");
   app.use(helmet());
+  app.use("/api", (_request, response, next) => {
+    response.setHeader("Cache-Control", "no-store");
+    next();
+  });
   app.use(
     cors({
       origin: config.WEB_ORIGIN,
@@ -242,7 +249,11 @@ export function createApp(
       setSessionCookies(response, session.id, session.csrf, input.rememberMe);
       response
         .status(200)
-        .json({ user: toPublicUser(account), csrfToken: session.csrf });
+        .json({
+          user: toPublicUser(account),
+          csrfToken: session.csrf,
+          sessionToken: session.id,
+        });
     }),
   );
 
@@ -253,10 +264,22 @@ export function createApp(
     }),
   );
 
+  api.post(
+    "/demo-data/seed",
+    asyncRoute(async (request, response) => {
+      const user = currentUser(request);
+      requireRoles("admin")(user);
+      await seedMysqlDemoData(user.id);
+      response.json({ message: "Synthetic demo data is ready." });
+    }),
+  );
+
   api.get("/auth/me", (request, response) =>
     response.json({
       user: currentUser(request),
       csrfToken: request.authCsrfToken ?? "",
+      sessionToken:
+        request.authSessionToken ?? bearerSessionToken(request) ?? "",
     }),
   );
   api.put(
@@ -332,13 +355,15 @@ export function createApp(
   api.post(
     "/auth/logout",
     asyncRoute(async (request, response) => {
-      const rawId = request.cookies?.[SESSION_COOKIE] as string | undefined;
+      const rawId =
+        bearerSessionToken(request) ??
+        (request.cookies?.[SESSION_COOKIE] as string | undefined);
       if (rawId)
         await pool.execute("DELETE FROM auth_sessions WHERE id = ?", [
           hashToken(rawId),
         ]);
-      clearSessionCookies(response);
-      response.status(204).end();
+        clearSessionCookies(response);
+        response.status(204).end();
     }),
   );
 

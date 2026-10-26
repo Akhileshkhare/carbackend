@@ -49,6 +49,8 @@ describe("local JSON storage fallback", () => {
       .send({ email: "admin@gmail.com", password: "Admin@123" });
     expect(login.status).toBe(200);
     expect(login.body.user.email).toBe("admin@gmail.com");
+    expect(login.body.sessionToken).toMatch(/^[a-f0-9]{64}$/);
+    const bearerToken = login.body.sessionToken as string;
     const sessionCookies = login.headers["set-cookie"] as string[];
     expect(sessionCookies).toHaveLength(2);
     expect(sessionCookies[0]).toContain(
@@ -60,6 +62,28 @@ describe("local JSON storage fallback", () => {
     }
 
     const csrfToken = login.body.csrfToken as string;
+    const cookieFreeSession = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${bearerToken}`);
+    expect(cookieFreeSession.status).toBe(200);
+    expect(cookieFreeSession.body.sessionToken).toBe(bearerToken);
+
+    const cookieFreeCreate = await request(app)
+      .post("/api/dealers")
+      .set("Authorization", `Bearer ${bearerToken}`)
+      .set("x-csrf-token", csrfToken)
+      .send({
+        name: "Bearer Session Dealer",
+        email: "bearer-dealer@example.test",
+        contact_no: "+91 90000 00006",
+      });
+    expect(cookieFreeCreate.status).toBe(201);
+    const cookieFreeDelete = await request(app)
+      .delete(`/api/dealers/${cookieFreeCreate.body.id}`)
+      .set("Authorization", `Bearer ${bearerToken}`)
+      .set("x-csrf-token", csrfToken);
+    expect(cookieFreeDelete.status).toBe(204);
+
     const dealer = {
       name: "Local JSON Dealer",
       email: "local-dealer@example.test",
@@ -137,5 +161,46 @@ describe("local JSON storage fallback", () => {
       pendingInspections: 0,
       pendingApprovals: 0,
     });
+
+    const seeded = await client
+      .post("/api/demo-data/seed")
+      .set("x-csrf-token", csrfToken)
+      .send({});
+    expect(seeded.status).toBe(200);
+    expect(seeded.headers["cache-control"]).toBe("no-store");
+
+    const seededDashboard = await client.get("/api/dashboard");
+    expect(seededDashboard.body).toMatchObject({
+      listings: 5,
+      dealers: 5,
+      buyers: 5,
+      sellers: 5,
+      quickListings: 5,
+      repairs: 5,
+      pendingInspections: 2,
+      pendingQualityChecks: 2,
+      pendingApprovals: 2,
+    });
+
+    const seededAgain = await client
+      .post("/api/demo-data/seed")
+      .set("x-csrf-token", csrfToken)
+      .send({});
+    expect(seededAgain.status).toBe(200);
+    expect((await client.get("/api/dealers")).body.total).toBe(5);
+
+    const bearerLogout = await request(app)
+      .post("/api/auth/logout")
+      .set("Authorization", `Bearer ${bearerToken}`)
+      .set("x-csrf-token", csrfToken)
+      .send({});
+    expect(bearerLogout.status).toBe(204);
+    expect(
+      (
+        await request(app)
+          .get("/api/auth/me")
+          .set("Authorization", `Bearer ${bearerToken}`)
+      ).status,
+    ).toBe(401);
   });
 });

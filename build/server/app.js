@@ -15,6 +15,7 @@ const pino_http_1 = __importDefault(require("pino-http"));
 const config_1 = require("./config");
 const local_api_1 = require("./local-api");
 const pool_1 = require("./db/pool");
+const demo_data_1 = require("./db/demo-data");
 const errors_1 = require("./errors");
 const logger_1 = require("./logger");
 const resources_1 = require("./resources");
@@ -76,7 +77,12 @@ const resourceStatuses = {
 function createApp(authenticateRequest = security_1.authenticate, localMode = false, localStore) {
     const app = (0, express_1.default)();
     app.disable("x-powered-by");
+    app.disable("etag");
     app.use((0, helmet_1.default)());
+    app.use("/api", (_request, response, next) => {
+        response.setHeader("Cache-Control", "no-store");
+        next();
+    });
     app.use((0, cors_1.default)({
         origin: config_1.config.WEB_ORIGIN,
         credentials: true,
@@ -144,15 +150,26 @@ function createApp(authenticateRequest = security_1.authenticate, localMode = fa
         (0, security_1.setSessionCookies)(response, session.id, session.csrf, input.rememberMe);
         response
             .status(200)
-            .json({ user: toPublicUser(account), csrfToken: session.csrf });
+            .json({
+            user: toPublicUser(account),
+            csrfToken: session.csrf,
+            sessionToken: session.id,
+        });
     }));
     api.use(asyncRoute(async (request, _response, next) => {
         await authenticateRequest(request);
         next();
     }));
+    api.post("/demo-data/seed", asyncRoute(async (request, response) => {
+        const user = currentUser(request);
+        (0, security_1.requireRoles)("admin")(user);
+        await (0, demo_data_1.seedMysqlDemoData)(user.id);
+        response.json({ message: "Synthetic demo data is ready." });
+    }));
     api.get("/auth/me", (request, response) => response.json({
         user: currentUser(request),
         csrfToken: request.authCsrfToken ?? "",
+        sessionToken: request.authSessionToken ?? (0, security_1.bearerSessionToken)(request) ?? "",
     }));
     api.put("/auth/profile", asyncRoute(async (request, response) => {
         const user = currentUser(request);
@@ -195,7 +212,8 @@ function createApp(authenticateRequest = security_1.authenticate, localMode = fa
         });
     }));
     api.post("/auth/logout", asyncRoute(async (request, response) => {
-        const rawId = request.cookies?.[security_1.SESSION_COOKIE];
+        const rawId = (0, security_1.bearerSessionToken)(request) ??
+            request.cookies?.[security_1.SESSION_COOKIE];
         if (rawId)
             await pool_1.pool.execute("DELETE FROM auth_sessions WHERE id = ?", [
                 (0, security_1.hashToken)(rawId),

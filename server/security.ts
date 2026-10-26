@@ -55,6 +55,11 @@ export function createOpaqueToken(): string {
   return randomBytes(32).toString("hex");
 }
 
+export function bearerSessionToken(request: Request): string | undefined {
+  const match = request.get("authorization")?.match(/^Bearer ([a-f0-9]{64})$/i);
+  return match?.[1];
+}
+
 export async function createSession(
   adminId: number,
   rememberMe: boolean,
@@ -84,7 +89,10 @@ interface SessionRow extends RowDataPacket {
 }
 
 export async function authenticate(request: Request): Promise<AuthUser> {
-  const rawId = request.cookies?.[SESSION_COOKIE] as string | undefined;
+  const bearerToken = bearerSessionToken(request);
+  const rawId =
+    bearerToken ??
+    (request.cookies?.[SESSION_COOKIE] as string | undefined);
   if (!rawId || !/^[a-f0-9]{64}$/.test(rawId)) {
     throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
   }
@@ -107,10 +115,9 @@ export async function authenticate(request: Request): Promise<AuthUser> {
     const cookieCsrf = request.cookies?.[CSRF_COOKIE] as string | undefined;
     const headerCsrf = request.get("x-csrf-token");
     if (
-      !cookieCsrf ||
       !headerCsrf ||
-      cookieCsrf !== session.csrf_token ||
-      headerCsrf !== session.csrf_token
+      headerCsrf !== session.csrf_token ||
+      (!bearerToken && (!cookieCsrf || cookieCsrf !== session.csrf_token))
     ) {
       throw new AppError(
         403,
@@ -126,6 +133,7 @@ export async function authenticate(request: Request): Promise<AuthUser> {
     role: session.role,
   };
   request.authCsrfToken = session.csrf_token;
+  request.authSessionToken = rawId;
   return request.authUser;
 }
 

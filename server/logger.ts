@@ -3,6 +3,14 @@ import { config } from "./config";
 
 export const logger = pino({
   level: config.LOG_LEVEL,
+  transport: {
+    target: "pino-pretty",
+    options: {
+      colorize: process.stdout.isTTY,
+      translateTime: "SYS:standard",
+      ignore: "pid,hostname",
+    },
+  },
   redact: {
     paths: [
       "req.headers.cookie",

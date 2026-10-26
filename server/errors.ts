@@ -24,6 +24,16 @@ export const errorHandler: ErrorRequestHandler = (
 ) => {
   const requestId = request.id;
   if (error instanceof AppError) {
+    logger.warn(
+      {
+        requestId,
+        method: request.method,
+        path: request.path,
+        status: error.status,
+        code: error.code,
+      },
+      `Request rejected: ${error.message}`,
+    );
     response.status(error.status).json({
       error: { code: error.code, message: error.message, requestId },
     });

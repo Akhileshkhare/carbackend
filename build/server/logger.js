@@ -8,6 +8,14 @@ const pino_1 = __importDefault(require("pino"));
 const config_1 = require("./config");
 exports.logger = (0, pino_1.default)({
     level: config_1.config.LOG_LEVEL,
+    transport: {
+        target: "pino-pretty",
+        options: {
+            colorize: process.stdout.isTTY,
+            translateTime: "SYS:standard",
+            ignore: "pid,hostname",
+        },
+    },
     redact: {
         paths: [
             "req.headers.cookie",

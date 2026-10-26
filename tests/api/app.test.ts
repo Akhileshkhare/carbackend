@@ -88,6 +88,23 @@ describe("REST API authentication, authorization, and validation", () => {
     });
   });
 
+  it("does not cache API responses or return cached 304 responses", async () => {
+    const response = await request(createApp(authenticatedAs(operationsUser)))
+      .get("/api/auth/me")
+      .set("If-None-Match", '"stale-dashboard-etag"');
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers.etag).toBeUndefined();
+  });
+
+  it("restricts demo data seeding to administrators", async () => {
+    const response = await request(createApp(authenticatedAs(operationsUser)))
+      .post("/api/demo-data/seed")
+      .send({});
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe("FORBIDDEN");
+  });
+
   it("prevents inspectors from listing unrelated customer records", async () => {
     const response = await request(
       createApp(authenticatedAs(inspectorUser)),
