@@ -22,6 +22,7 @@ const envSchema = z.object({
   LOCAL_DATA_FILE: z.string().default("data/local-db.json"),
   LOCAL_ADMIN_EMAIL: z.string().email().default("admin@gmail.com"),
   LOCAL_ADMIN_PASSWORD: z.string().min(1).default("Admin@123"),
+  SEED_DEMO_DATA: z.enum(["true", "false"]).default("false"),
   COOKIE_SECURE: z
     .enum(["true", "false"])
     .default(process.env.NODE_ENV === "production" ? "true" : "false"),

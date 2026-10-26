@@ -1,5 +1,10 @@
 import type { ResourceName } from "../../shared/contracts";
-import type { LocalDatabase, LocalJsonStore, LocalRecord } from "./local-store";
+import {
+  localStore,
+  type LocalDatabase,
+  type LocalJsonStore,
+  type LocalRecord,
+} from "./local-store";
 import { pool } from "./pool";
 import type { ExecuteValues, RowDataPacket } from "mysql2";
 
@@ -216,7 +221,9 @@ function localRecord(
   return record;
 }
 
-export async function seedLocalDemoData(store: LocalJsonStore): Promise<void> {
+export async function seedLocalDemoData(
+  store: LocalJsonStore = localStore,
+): Promise<void> {
   await store.update((database) => {
     const sellerRecords = sellers.map((seller) =>
       localRecord(database, store, "sellers", "email", seller),

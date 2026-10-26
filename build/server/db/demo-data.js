@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedMysqlDemoData = seedMysqlDemoData;
 exports.seedLocalDemoData = seedLocalDemoData;
+const local_store_1 = require("./local-store");
 const pool_1 = require("./pool");
 const sellers = [
     { name: "Aarav Sharma", email: "aarav.sharma@example.test", contact_no: "+91 90000 00101", city: "Pune", status: "active", registered_at: "2025-01-15" },
@@ -145,7 +146,7 @@ function localRecord(database, store, resource, key, values) {
     database.records[resource].push(record);
     return record;
 }
-async function seedLocalDemoData(store) {
+async function seedLocalDemoData(store = local_store_1.localStore) {
     await store.update((database) => {
         const sellerRecords = sellers.map((seller) => localRecord(database, store, "sellers", "email", seller));
         buyers.forEach((buyer) => localRecord(database, store, "buyers", "email", buyer));

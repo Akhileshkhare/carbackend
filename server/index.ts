@@ -3,6 +3,8 @@ import { config } from "./config";
 import { pool } from "./db/pool";
 import { logger } from "./logger";
 import { initializeLocalApi } from "./local-api";
+import { seedLocalDemoData, seedMysqlDemoData } from "./db/demo-data";
+import type { RowDataPacket } from "mysql2";
 
 let server: ReturnType<ReturnType<typeof createApp>["listen"]> | undefined;
 
@@ -46,7 +48,24 @@ async function start(): Promise<void> {
       "MySQL connection failed; switching to local JSON storage",
     );
   }
-  if (localMode) await initializeLocalApi();
+  if (localMode) {
+    await initializeLocalApi();
+    if (config.SEED_DEMO_DATA === "true") {
+      await seedLocalDemoData();
+      logger.info("Seeded synthetic demo records in local JSON storage");
+    }
+  } else if (config.SEED_DEMO_DATA === "true") {
+    const [admins] = await pool.execute<Array<RowDataPacket & { id: number }>>(
+      "SELECT id FROM admins WHERE active = TRUE ORDER BY id LIMIT 1",
+    );
+    if (!admins[0]) {
+      throw new Error(
+        "SEED_DEMO_DATA is enabled, but no active MySQL administrator exists.",
+      );
+    }
+    await seedMysqlDemoData(admins[0].id);
+    logger.info("Seeded synthetic demo records in MySQL");
+  }
   const app = createApp(undefined, localMode);
   server = app.listen(config.PORT, () => {
     logger.info(
