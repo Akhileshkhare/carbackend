@@ -49,6 +49,15 @@ describe("local JSON storage fallback", () => {
       .send({ email: "admin@gmail.com", password: "Admin@123" });
     expect(login.status).toBe(200);
     expect(login.body.user.email).toBe("admin@gmail.com");
+    const sessionCookies = login.headers["set-cookie"] as string[];
+    expect(sessionCookies).toHaveLength(2);
+    expect(sessionCookies[0]).toContain(
+      `SameSite=${config.COOKIE_SAME_SITE[0].toUpperCase()}${config.COOKIE_SAME_SITE.slice(1)}`,
+    );
+    if (config.COOKIE_SECURE === "true") {
+      expect(sessionCookies[0]).toContain("Secure");
+      expect(sessionCookies[1]).toContain("Secure");
+    }
 
     const csrfToken = login.body.csrfToken as string;
     const dealer = {

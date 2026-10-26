@@ -22,8 +22,12 @@ const envSchema = z.object({
   LOCAL_DATA_FILE: z.string().default("data/local-db.json"),
   LOCAL_ADMIN_EMAIL: z.string().email().default("admin@gmail.com"),
   LOCAL_ADMIN_PASSWORD: z.string().min(1).default("Admin@123"),
-  COOKIE_SECURE: z.enum(["true", "false"]).default("false"),
-  COOKIE_SAME_SITE: z.enum(["strict", "lax", "none"]).default("strict"),
+  COOKIE_SECURE: z
+    .enum(["true", "false"])
+    .default(process.env.NODE_ENV === "production" ? "true" : "false"),
+  COOKIE_SAME_SITE: z
+    .enum(["strict", "lax", "none"])
+    .default(process.env.NODE_ENV === "production" ? "none" : "strict"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
