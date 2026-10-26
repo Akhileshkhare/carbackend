@@ -17,6 +17,9 @@ const envSchema = z.object({
     .string()
     .regex(/^[a-zA-Z0-9_]+$/)
     .default("cocacars_admin"),
+  STORAGE_MODE: z
+    .enum(["auto", "mysql", "json"])
+    .default(process.env.NODE_ENV === "production" ? "json" : "auto"),
   MYSQL_USER: z.string().default("cocacars_app"),
   MYSQL_PASSWORD: z.string().default(""),
   LOCAL_DATA_FILE: z.string().default("data/local-db.json"),

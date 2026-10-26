@@ -1,9 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedMysqlDemoData = seedMysqlDemoData;
 exports.seedLocalDemoData = seedLocalDemoData;
 const local_store_1 = require("./local-store");
 const pool_1 = require("./pool");
+const demo_data_json_1 = __importDefault(require("./demo-data.json"));
 const sellers = [
     { name: "Aarav Sharma", email: "aarav.sharma@example.test", contact_no: "+91 90000 00101", city: "Pune", status: "active", registered_at: "2025-01-15" },
     { name: "Mira Patel", email: "mira.patel@example.test", contact_no: "+91 90000 00102", city: "Mumbai", status: "active", registered_at: "2025-02-10" },
@@ -148,18 +152,18 @@ function localRecord(database, store, resource, key, values) {
 }
 async function seedLocalDemoData(store = local_store_1.localStore) {
     await store.update((database) => {
-        const sellerRecords = sellers.map((seller) => localRecord(database, store, "sellers", "email", seller));
-        buyers.forEach((buyer) => localRecord(database, store, "buyers", "email", buyer));
-        dealers.forEach((dealer) => localRecord(database, store, "dealers", "email", dealer));
-        const listingRecords = listings.map((listing) => {
+        const sellerRecords = demo_data_json_1.default.sellers.map((seller) => localRecord(database, store, "sellers", "email", seller));
+        demo_data_json_1.default.buyers.forEach((buyer) => localRecord(database, store, "buyers", "email", buyer));
+        demo_data_json_1.default.dealers.forEach((dealer) => localRecord(database, store, "dealers", "email", dealer));
+        const listingRecords = demo_data_json_1.default.listings.map((listing) => {
             const { seller, ...values } = listing;
             return localRecord(database, store, "listings", "registration_no", {
                 ...values,
                 seller_id: sellerRecords[seller].id,
             });
         });
-        const quickRecords = quickListings.map((quick) => localRecord(database, store, "quick-listings", "ref_id", quick));
-        const inspectionRecords = inspections.map((inspection) => {
+        const quickRecords = demo_data_json_1.default.quickListings.map((quick) => localRecord(database, store, "quick-listings", "ref_id", quick));
+        const inspectionRecords = demo_data_json_1.default.inspections.map((inspection) => {
             const { listing, ...values } = inspection;
             return localRecord(database, store, "inspections", "ref_id", {
                 ...values,
@@ -167,7 +171,7 @@ async function seedLocalDemoData(store = local_store_1.localStore) {
                 quick_listing_id: quickRecords[listing].id,
             });
         });
-        qualityChecks.forEach((check) => {
+        demo_data_json_1.default.qualityChecks.forEach((check) => {
             const { inspection, listing, ...values } = check;
             localRecord(database, store, "quality-checks", "ref_id", {
                 ...values,
@@ -175,37 +179,37 @@ async function seedLocalDemoData(store = local_store_1.localStore) {
                 listing_id: listingRecords[listing].id,
             });
         });
-        repairs.forEach((repair) => localRecord(database, store, "repairs", "registration_no", repair));
+        demo_data_json_1.default.repairs.forEach((repair) => localRecord(database, store, "repairs", "registration_no", repair));
         const requester = database.admins.find((admin) => admin.active);
         if (!requester)
             throw new Error("A local administrator is required to seed approvals.");
         const qualityCheck = database.records["quality-checks"].find((record) => record.ref_id === "DEMO-QC-101");
         if (!qualityCheck)
             throw new Error("Unable to resolve seeded quality check.");
-        const approvalFixtures = [
-            {
-                resource: "inspections",
-                resourceId: inspectionRecords[0].id,
-                fromStatus: "pending",
-                toStatus: "inspecting",
-                note: "Synthetic approval request for testing.",
-            },
-            {
-                resource: "quality-checks",
-                resourceId: qualityCheck.id,
-                fromStatus: "pending",
-                toStatus: "completed",
-                note: "Synthetic quality approval request for testing.",
-            },
-        ];
-        for (const fixture of approvalFixtures) {
-            const exists = database.statusRequests.some((request) => request.resource === fixture.resource &&
-                request.resourceId === fixture.resourceId &&
+        for (const fixture of demo_data_json_1.default.statusRequests) {
+            if (fixture.resource !== "inspections" &&
+                fixture.resource !== "quality-checks") {
+                throw new Error(`Unsupported demo approval resource: ${fixture.resource}.`);
+            }
+            const resource = fixture.resource;
+            const resourceRecords = resource === "inspections"
+                ? database.records.inspections
+                : database.records["quality-checks"];
+            const resourceRecord = resourceRecords.find((record) => record.ref_id === fixture.resource_ref_id);
+            if (!resourceRecord) {
+                throw new Error(`Unable to resolve demo ${resource} ${fixture.resource_ref_id}.`);
+            }
+            const exists = database.statusRequests.some((request) => request.resource === resource &&
+                request.resourceId === resourceRecord.id &&
                 request.note === fixture.note);
             if (!exists) {
                 database.statusRequests.push({
                     id: store.nextId(database, "statusRequests"),
-                    ...fixture,
+                    resource,
+                    resourceId: resourceRecord.id,
+                    fromStatus: fixture.fromStatus,
+                    toStatus: fixture.toStatus,
+                    note: fixture.note,
                     status: "pending",
                     requestedBy: requester.id,
                     reviewedBy: null,

@@ -23,30 +23,35 @@ async function shutdown(signal) {
     });
 }
 async function start() {
-    let localMode = false;
-    try {
-        await pool_1.pool.query("SELECT 1");
-        logger_1.logger.info({
-            host: config_1.config.MYSQL_HOST,
-            port: config_1.config.MYSQL_PORT,
-            database: config_1.config.MYSQL_DATABASE,
-        }, "MySQL database connection established");
+    let localMode = config_1.config.STORAGE_MODE === "json";
+    if (localMode) {
+        logger_1.logger.warn("Using bundled JSON storage; MySQL is disabled by STORAGE_MODE.");
     }
-    catch (error) {
-        localMode = true;
-        logger_1.logger.warn({
-            err: error,
-            host: config_1.config.MYSQL_HOST,
-            port: config_1.config.MYSQL_PORT,
-            database: config_1.config.MYSQL_DATABASE,
-        }, "MySQL connection failed; switching to local JSON storage");
+    else {
+        try {
+            await pool_1.pool.query("SELECT 1");
+            logger_1.logger.info({
+                host: config_1.config.MYSQL_HOST,
+                port: config_1.config.MYSQL_PORT,
+                database: config_1.config.MYSQL_DATABASE,
+            }, "MySQL database connection established");
+        }
+        catch (error) {
+            if (config_1.config.STORAGE_MODE === "mysql")
+                throw error;
+            localMode = true;
+            logger_1.logger.warn({
+                err: error,
+                host: config_1.config.MYSQL_HOST,
+                port: config_1.config.MYSQL_PORT,
+                database: config_1.config.MYSQL_DATABASE,
+            }, "MySQL connection failed; switching to local JSON storage");
+        }
     }
     if (localMode) {
         await (0, local_api_1.initializeLocalApi)();
-        if (config_1.config.SEED_DEMO_DATA === "true") {
-            await (0, demo_data_1.seedLocalDemoData)();
-            logger_1.logger.info("Seeded synthetic demo records in local JSON storage");
-        }
+        await (0, demo_data_1.seedLocalDemoData)();
+        logger_1.logger.info("Loaded bundled synthetic records into local JSON storage");
     }
     else if (config_1.config.SEED_DEMO_DATA === "true") {
         const [admins] = await pool_1.pool.execute("SELECT id FROM admins WHERE active = TRUE ORDER BY id LIMIT 1");

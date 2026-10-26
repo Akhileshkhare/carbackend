@@ -25,35 +25,40 @@ async function shutdown(signal: string): Promise<void> {
 }
 
 async function start(): Promise<void> {
-  let localMode = false;
-  try {
-    await pool.query("SELECT 1");
-    logger.info(
-      {
-        host: config.MYSQL_HOST,
-        port: config.MYSQL_PORT,
-        database: config.MYSQL_DATABASE,
-      },
-      "MySQL database connection established",
-    );
-  } catch (error) {
-    localMode = true;
+  let localMode = config.STORAGE_MODE === "json";
+  if (localMode) {
     logger.warn(
-      {
-        err: error,
-        host: config.MYSQL_HOST,
-        port: config.MYSQL_PORT,
-        database: config.MYSQL_DATABASE,
-      },
-      "MySQL connection failed; switching to local JSON storage",
+      "Using bundled JSON storage; MySQL is disabled by STORAGE_MODE.",
     );
+  } else {
+    try {
+      await pool.query("SELECT 1");
+      logger.info(
+        {
+          host: config.MYSQL_HOST,
+          port: config.MYSQL_PORT,
+          database: config.MYSQL_DATABASE,
+        },
+        "MySQL database connection established",
+      );
+    } catch (error) {
+      if (config.STORAGE_MODE === "mysql") throw error;
+      localMode = true;
+      logger.warn(
+        {
+          err: error,
+          host: config.MYSQL_HOST,
+          port: config.MYSQL_PORT,
+          database: config.MYSQL_DATABASE,
+        },
+        "MySQL connection failed; switching to local JSON storage",
+      );
+    }
   }
   if (localMode) {
     await initializeLocalApi();
-    if (config.SEED_DEMO_DATA === "true") {
-      await seedLocalDemoData();
-      logger.info("Seeded synthetic demo records in local JSON storage");
-    }
+    await seedLocalDemoData();
+    logger.info("Loaded bundled synthetic records into local JSON storage");
   } else if (config.SEED_DEMO_DATA === "true") {
     const [admins] = await pool.execute<Array<RowDataPacket & { id: number }>>(
       "SELECT id FROM admins WHERE active = TRUE ORDER BY id LIMIT 1",
