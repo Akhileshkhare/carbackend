@@ -75,7 +75,7 @@ async function start(): Promise<void> {
   server = app.listen(config.PORT, () => {
     logger.info(
       { port: config.PORT, storage: localMode ? "json" : "mysql" },
-      "CocaCars admin API is listening",
+      "AutoSureX admin API is listening",
     );
   });
 }

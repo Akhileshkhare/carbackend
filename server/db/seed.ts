@@ -17,7 +17,7 @@ async function seedMysql(): Promise<void> {
     `INSERT INTO admins (name, email, password_hash, role, active)
      VALUES (?, ?, ?, 'admin', TRUE)
      ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = 'admin', active = TRUE`,
-    ["CocaCars Administrator", adminEmail, adminHash],
+    ["AutoSureX Administrator", adminEmail, adminHash],
   );
   const [rows] = await pool.execute<Array<RowDataPacket & { id: number }>>(
     "SELECT id FROM admins WHERE email = ? LIMIT 1",
