@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS inspections (
   status ENUM('pending', 'inspecting', 'completed') NOT NULL DEFAULT 'pending',
   scheduled_at DATETIME NULL,
   notes TEXT NULL,
+  pdi_data JSON NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_inspection_listing FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE SET NULL,

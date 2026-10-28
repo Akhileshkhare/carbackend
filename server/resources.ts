@@ -157,6 +157,7 @@ export const resourceConfig: Record<
       "status",
       "scheduled_at",
       "notes",
+      "pdi_data",
       "created_at",
       "updated_at",
     ],

@@ -757,7 +757,9 @@ export function createApp(
         await assertInspectorAssignment(input.assigned_to);
       const fields = Object.keys(input);
       const values = fields.map((field) =>
-        field === "features" ? JSON.stringify(input[field]) : input[field],
+        ["features", "pdi_data"].includes(field)
+          ? JSON.stringify(input[field])
+          : input[field],
       );
       const [result] = await pool.execute<ResultSetHeader>(
         `INSERT INTO \`${resourceConfig[resource].table}\`
@@ -805,7 +807,9 @@ export function createApp(
       if (typeof input.assigned_to === "number")
         await assertInspectorAssignment(input.assigned_to);
       const values = fields.map((field) =>
-        field === "features" ? JSON.stringify(input[field]) : input[field],
+        ["features", "pdi_data"].includes(field)
+          ? JSON.stringify(input[field])
+          : input[field],
       );
       const scopeSql = user.role === "inspector" ? " AND assigned_to = ?" : "";
       const [result] = await pool.execute<ResultSetHeader>(

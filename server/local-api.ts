@@ -46,10 +46,11 @@ const asyncRoute =
 const dummyPasswordHash = bcrypt.hashSync(randomBytes(32).toString("hex"), 10);
 
 function currentUser(request: Request): AuthUser {
-  if (!request.authUser) {
+  const authUser = (request as Request & { authUser?: AuthUser }).authUser;
+  if (!authUser) {
     throw new AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
   }
-  return request.authUser;
+  return authUser;
 }
 
 function validResource(value: string): ResourceName {
@@ -270,9 +271,14 @@ export function createLocalApi(
           );
         }
       }
-      request.authUser = localAdminUser(session.admin);
-      request.authCsrfToken = session.session.csrfToken;
-      request.authSessionToken = rawId;
+      (request as Request & { authUser?: AuthUser }).authUser =
+        localAdminUser(session.admin);
+      const authRequest = request as Request & {
+        authCsrfToken?: string;
+        authSessionToken?: string;
+      };
+      authRequest.authCsrfToken = session.session.csrfToken;
+      authRequest.authSessionToken = rawId;
       next();
     }),
   );
@@ -289,12 +295,18 @@ export function createLocalApi(
   );
 
   api.get("/auth/me", (request, response) =>
-    response.json({
-      user: currentUser(request),
-      csrfToken: request.authCsrfToken ?? "",
-      sessionToken:
-        request.authSessionToken ?? bearerSessionToken(request) ?? "",
-    }),
+    {
+      const authRequest = request as Request & {
+        authCsrfToken?: string;
+        authSessionToken?: string;
+      };
+      response.json({
+        user: currentUser(request),
+        csrfToken: authRequest.authCsrfToken ?? "",
+        sessionToken:
+          authRequest.authSessionToken ?? bearerSessionToken(request) ?? "",
+      });
+    },
   );
 
   api.put(
