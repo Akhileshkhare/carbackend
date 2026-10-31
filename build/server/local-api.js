@@ -45,6 +45,20 @@ const imageUpload = (0, multer_1.default)({
         callback(null, true);
     },
 });
+const imageUploadMiddleware = (request, response, next) => {
+    imageUpload.array("images", 8)(request, response, (error) => {
+        if (error instanceof multer_1.default.MulterError) {
+            const message = error.code === "LIMIT_FILE_SIZE"
+                ? "Each image must be 8 MB or smaller."
+                : error.code === "LIMIT_FILE_COUNT"
+                    ? "You can upload up to 8 images at a time."
+                    : "The image upload could not be completed.";
+            next(new errors_1.AppError(error.code === "LIMIT_FILE_SIZE" ? 413 : 400, "IMAGE_UPLOAD_INVALID", message));
+            return;
+        }
+        next(error);
+    });
+};
 function currentUser(request) {
     const authUser = request.authUser;
     if (!authUser) {
@@ -215,7 +229,7 @@ function createLocalApi(loginLimiter, store = local_store_1.localStore) {
         authRequest.authSessionToken = rawId;
         next();
     }));
-    api.post("/uploads/images", imageUpload.array("images", 8), asyncRoute(async (request, response) => {
+    api.post("/uploads/images", imageUploadMiddleware, asyncRoute(async (request, response) => {
         const user = currentUser(request);
         const files = request.files ?? [];
         if (!files.length) {

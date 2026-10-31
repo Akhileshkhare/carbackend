@@ -368,7 +368,24 @@
       "mobile": "+91 90000 00401",
       "status": "pending",
       "scheduled_at": "2026-11-10 10:00:00",
-      "notes": "Synthetic inspection pending."
+      "notes": "Synthetic inspection pending.",
+      "pdi_data": {
+        "inspection_type": "Preowned car PDI",
+        "vin_plate_condition": "Clearly visible",
+        "fuel_type": "Petrol",
+        "transmission": "Manual",
+        "manufacturing_year": "2022",
+        "odometer_readings": "23000",
+        "front_bumper": "Good",
+        "front_left_fender": "Good",
+        "right_front_tyre": "75-100%",
+        "left_front_tyre": "75-100%",
+        "ac_cooling": "Working",
+        "engine_oil": "Good",
+        "overall_pdi_rating": "5",
+        "overall_status": "PASS",
+        "engineer_comment": "Vehicle is ready for listing."
+      }
     },
     {
       "ref_id": "DEMO-IN-102",
@@ -378,7 +395,23 @@
       "mobile": "+91 90000 00402",
       "status": "inspecting",
       "scheduled_at": "2026-11-11 11:30:00",
-      "notes": "Synthetic inspection in progress."
+      "notes": "Synthetic inspection in progress.",
+      "pdi_data": {
+        "inspection_type": "New car PDI",
+        "vin_plate_condition": "Clearly visible",
+        "fuel_type": "Petrol",
+        "transmission": "Automatic",
+        "manufacturing_year": "2021",
+        "odometer_readings": "31000",
+        "front_bumper": "Okay",
+        "right_front_tyre": "50-75%",
+        "left_front_tyre": "50-75%",
+        "ac_cooling": "Working",
+        "engine_oil": "Good",
+        "overall_pdi_rating": "4",
+        "overall_status": "PASS with Minor Observations",
+        "engineer_comment": "Minor exterior observations require review."
+      }
     },
     {
       "ref_id": "DEMO-IN-103",
@@ -388,7 +421,24 @@
       "mobile": "+91 90000 00403",
       "status": "completed",
       "scheduled_at": "2026-11-12 09:00:00",
-      "notes": "Synthetic inspection completed."
+      "notes": "Synthetic inspection completed.",
+      "pdi_data": {
+        "inspection_type": "Preowned car PDI",
+        "vin_plate_condition": "Clearly visible",
+        "fuel_type": "Diesel",
+        "transmission": "Automatic",
+        "manufacturing_year": "2023",
+        "odometer_readings": "14000",
+        "front_bumper": "Good",
+        "roof": "Good",
+        "right_front_tyre": "75-100%",
+        "left_front_tyre": "75-100%",
+        "ac_cooling": "Working",
+        "engine_sound": "Normal",
+        "overall_pdi_rating": "5",
+        "overall_status": "PASS",
+        "engineer_comment": "Completed successfully with no major findings."
+      }
     },
     {
       "ref_id": "DEMO-IN-104",
@@ -398,7 +448,24 @@
       "mobile": "+91 90000 00404",
       "status": "pending",
       "scheduled_at": "2026-11-13 14:00:00",
-      "notes": "Synthetic inspection pending."
+      "notes": "Synthetic inspection pending.",
+      "pdi_data": {
+        "inspection_type": "Preowned car PDI",
+        "vin_plate_condition": "Damaged",
+        "fuel_type": "Petrol",
+        "transmission": "CVT",
+        "manufacturing_year": "2020",
+        "odometer_readings": "42000",
+        "front_bumper": "Needs Attention",
+        "rear_bumper": "Repaired",
+        "right_front_tyre": "25-50%",
+        "left_front_tyre": "25-50%",
+        "ac_cooling": "Okay",
+        "brakes": "Needs Attention",
+        "overall_pdi_rating": "3",
+        "overall_status": "PASS with Minor Observations",
+        "engineer_comment": "Schedule bumper and brake follow-up."
+      }
     },
     {
       "ref_id": "DEMO-IN-105",
@@ -408,7 +475,24 @@
       "mobile": "+91 90000 00405",
       "status": "inspecting",
       "scheduled_at": "2026-11-14 12:00:00",
-      "notes": "Synthetic inspection in progress."
+      "notes": "Synthetic inspection in progress.",
+      "pdi_data": {
+        "inspection_type": "Preowned car PDI",
+        "vin_plate_condition": "Clearly visible",
+        "fuel_type": "Diesel",
+        "transmission": "Manual",
+        "manufacturing_year": "2022",
+        "odometer_readings": "27000",
+        "front_bumper": "Good",
+        "roof": "Good",
+        "right_front_tyre": "50-75%",
+        "left_front_tyre": "50-75%",
+        "ac_cooling": "Working",
+        "engine_sound": "Normal",
+        "overall_pdi_rating": "4",
+        "overall_status": "PASS",
+        "engineer_comment": "Inspection is currently in progress."
+      }
     }
   ],
   "qualityChecks": [
