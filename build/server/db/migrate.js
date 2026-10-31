@@ -16,26 +16,30 @@ async function migrate() {
         database: config_1.config.MYSQL_DATABASE,
     });
     try {
-        const migration = await (0, promises_1.readFile)(node_path_1.default.resolve(process.cwd(), "database/migrations/001_initial.sql"), "utf8");
-        const statements = migration
-            .replace(/^\s*CREATE DATABASE IF NOT EXISTS[^;]+;\s*/i, "")
-            .replace(/^\s*USE [^;]+;\s*/i, "")
-            .split(";")
-            .map((statement) => statement.trim())
-            .filter(Boolean);
         await connection.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
         version VARCHAR(100) NOT NULL PRIMARY KEY,
         applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB`);
-        const [applied] = await connection.execute("SELECT version FROM schema_migrations WHERE version = ? LIMIT 1", ["001_initial"]);
-        if (applied.length) {
-            console.info("Database migration 001_initial is already applied.");
-            return;
+        const files = (await (0, promises_1.readdir)(node_path_1.default.resolve(process.cwd(), "database/migrations")))
+            .filter((file) => /^\d+_.+\.sql$/i.test(file))
+            .sort();
+        for (const file of files) {
+            const version = file.replace(/\.sql$/i, "");
+            const [applied] = await connection.execute("SELECT version FROM schema_migrations WHERE version = ? LIMIT 1", [version]);
+            if (applied.length)
+                continue;
+            const migration = await (0, promises_1.readFile)(node_path_1.default.resolve(process.cwd(), "database/migrations", file), "utf8");
+            const statements = migration
+                .replace(/^\s*CREATE DATABASE IF NOT EXISTS[^;]+;\s*/i, "")
+                .replace(/^\s*USE [^;]+;\s*/i, "")
+                .split(";")
+                .map((statement) => statement.trim())
+                .filter(Boolean);
+            for (const statement of statements)
+                await connection.query(statement);
+            await connection.execute("INSERT INTO schema_migrations (version) VALUES (?)", [version]);
+            console.info(`Applied database migration ${version}.`);
         }
-        for (const statement of statements)
-            await connection.query(statement);
-        await connection.execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", ["001_initial"]);
-        console.info("Applied database migration 001_initial.");
     }
     finally {
         await connection.end();

@@ -63,7 +63,7 @@ async function start() {
     }
     const app = (0, app_1.createApp)(undefined, localMode);
     server = app.listen(config_1.config.PORT, () => {
-        logger_1.logger.info({ port: config_1.config.PORT, storage: localMode ? "json" : "mysql" }, "CocaCars admin API is listening");
+        logger_1.logger.info({ port: config_1.config.PORT, storage: localMode ? "json" : "mysql" }, "AutoSureX admin API is listening");
     });
 }
 process.on("SIGINT", () => void shutdown("SIGINT"));

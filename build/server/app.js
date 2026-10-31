@@ -120,6 +120,7 @@ function createApp(authenticateRequest = security_1.authenticate, localMode = fa
     });
     if (localMode) {
         app.get("/health", (_request, response) => response.json({ status: "ok" }));
+        app.use("/uploads", express_1.default.static(config_1.config.LOCAL_UPLOAD_DIR));
         app.use("/api", (0, local_api_1.createLocalApi)(loginLimiter, localStore));
         app.use("/api", errors_1.notFound);
         app.use(errors_1.notFound);
@@ -452,7 +453,9 @@ function createApp(authenticateRequest = security_1.authenticate, localMode = fa
         if (typeof input.assigned_to === "number")
             await assertInspectorAssignment(input.assigned_to);
         const fields = Object.keys(input);
-        const values = fields.map((field) => field === "features" ? JSON.stringify(input[field]) : input[field]);
+        const values = fields.map((field) => ["features", "pdi_data"].includes(field)
+            ? JSON.stringify(input[field])
+            : input[field]);
         const [result] = await pool_1.pool.execute(`INSERT INTO \`${resources_1.resourceConfig[resource].table}\`
        (${fields.map((field) => `\`${field}\``).join(", ")})
        VALUES (${fields.map(() => "?").join(", ")})`, values);
@@ -478,7 +481,9 @@ function createApp(authenticateRequest = security_1.authenticate, localMode = fa
         }
         if (typeof input.assigned_to === "number")
             await assertInspectorAssignment(input.assigned_to);
-        const values = fields.map((field) => field === "features" ? JSON.stringify(input[field]) : input[field]);
+        const values = fields.map((field) => ["features", "pdi_data"].includes(field)
+            ? JSON.stringify(input[field])
+            : input[field]);
         const scopeSql = user.role === "inspector" ? " AND assigned_to = ?" : "";
         const [result] = await pool_1.pool.execute(`UPDATE \`${resources_1.resourceConfig[resource].table}\`
        SET ${fields.map((field) => `\`${field}\` = ?`).join(", ")}

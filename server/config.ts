@@ -23,6 +23,7 @@ const envSchema = z.object({
   MYSQL_USER: z.string().default("cocacars_app"),
   MYSQL_PASSWORD: z.string().default(""),
   LOCAL_DATA_FILE: z.string().default("data/local-db.json"),
+  LOCAL_UPLOAD_DIR: z.string().default("data/uploads"),
   LOCAL_ADMIN_EMAIL: z.string().email().default("admin@gmail.com"),
   LOCAL_ADMIN_PASSWORD: z.string().min(1).default("Admin@123"),
   SEED_DEMO_DATA: z.enum(["true", "false"]).default("false"),

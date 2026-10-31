@@ -1,7 +1,10 @@
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
+import { mkdir, unlink } from "node:fs/promises";
+import path from "node:path";
 import type { Request, RequestHandler, Response } from "express";
 import express from "express";
+import multer from "multer";
 import type { AuthUser, ResourceName } from "../shared/contracts";
 import { config } from "./config";
 import { AppError } from "./errors";
@@ -44,6 +47,49 @@ const asyncRoute =
   };
 
 const dummyPasswordHash = bcrypt.hashSync(randomBytes(32).toString("hex"), 10);
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_request, _file, callback) => {
+      void mkdir(config.LOCAL_UPLOAD_DIR, { recursive: true })
+        .then(() => callback(null, config.LOCAL_UPLOAD_DIR))
+        .catch((error) => callback(error, config.LOCAL_UPLOAD_DIR));
+    },
+    filename: (_request, file, callback) => {
+      const extension = path.extname(file.originalname).toLowerCase();
+      callback(null, `${randomBytes(16).toString("hex")}${extension}`);
+    },
+  }),
+  limits: { files: 8, fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_request, file, callback) => {
+    if (!allowedImageTypes.has(file.mimetype)) {
+      callback(new AppError(400, "INVALID_IMAGE_TYPE", "Only JPG, PNG, and WebP images are supported."));
+      return;
+    }
+    callback(null, true);
+  },
+});
+const imageUploadMiddleware: RequestHandler = (request, response, next) => {
+  imageUpload.array("images", 8)(request, response, (error: unknown) => {
+    if (error instanceof multer.MulterError) {
+      const message =
+        error.code === "LIMIT_FILE_SIZE"
+          ? "Each image must be 8 MB or smaller."
+          : error.code === "LIMIT_FILE_COUNT"
+            ? "You can upload up to 8 images at a time."
+            : "The image upload could not be completed.";
+      next(
+        new AppError(
+          error.code === "LIMIT_FILE_SIZE" ? 413 : 400,
+          "IMAGE_UPLOAD_INVALID",
+          message,
+        ),
+      );
+      return;
+    }
+    next(error);
+  });
+};
 
 function currentUser(request: Request): AuthUser {
   const authUser = (request as Request & { authUser?: AuthUser }).authUser;
@@ -245,6 +291,7 @@ export function createLocalApi(
         const found = database.sessions.find(
           (item) => item.id === hashToken(rawId) && item.expiresAt > Date.now(),
         );
+
         const admin = found
           ? database.admins.find(
               (item) => item.id === found.adminId && item.active,
@@ -280,6 +327,57 @@ export function createLocalApi(
       authRequest.authCsrfToken = session.session.csrfToken;
       authRequest.authSessionToken = rawId;
       next();
+    }),
+  );
+
+  api.post(
+    "/uploads/images",
+    imageUploadMiddleware,
+    asyncRoute(async (request, response) => {
+      const user = currentUser(request);
+      const files = (request.files as Express.Multer.File[] | undefined) ?? [];
+      if (!files.length) {
+        throw new AppError(400, "NO_IMAGES", "Select at least one image to upload.");
+      }
+      const uploads = await store.update((database) => {
+        database.uploads ??= [];
+        return files.map((file) => {
+          const upload = {
+            id: store.nextId(database, "uploads"),
+            filename: file.filename,
+            originalName: file.originalname.slice(0, 255),
+            mimeType: file.mimetype,
+            size: file.size,
+            uploadedBy: user.id,
+            createdAt: new Date().toISOString(),
+          };
+          database.uploads.push(upload);
+          return {
+            ...upload,
+            url: `/uploads/${encodeURIComponent(file.filename)}`,
+          };
+        });
+      });
+      response.status(201).json({ data: uploads });
+    }),
+  );
+
+  api.delete(
+    "/uploads/:id",
+    asyncRoute(async (request, response) => {
+      const user = currentUser(request);
+      const id = positiveId(request.params.id, "Upload ID");
+      const upload = await store.get((database) =>
+        database.uploads?.find((item) => item.id === id),
+      );
+      if (!upload || (upload.uploadedBy !== user.id && user.role !== "admin")) {
+        throw new AppError(404, "NOT_FOUND", "The uploaded image was not found.");
+      }
+      await store.update((database) => {
+        database.uploads = (database.uploads ?? []).filter((item) => item.id !== id);
+      });
+      await unlink(path.join(config.LOCAL_UPLOAD_DIR, upload.filename)).catch(() => undefined);
+      response.status(204).end();
     }),
   );
 

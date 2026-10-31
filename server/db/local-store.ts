@@ -36,11 +36,22 @@ export interface LocalStatusRequest {
   reviewedAt: string | null;
 }
 
+export interface LocalUpload {
+  id: number;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  uploadedBy: number;
+  createdAt: string;
+}
+
 export interface LocalDatabase {
   admins: LocalAdmin[];
   sessions: LocalSession[];
   records: Record<ResourceName, LocalRecord[]>;
   statusRequests: LocalStatusRequest[];
+  uploads: LocalUpload[];
   nextIds: Record<string, number>;
 }
 
@@ -70,6 +81,7 @@ function emptyDatabase(): LocalDatabase {
       repairs: [],
     },
     statusRequests: [],
+    uploads: [],
     nextIds: {},
   };
 }
@@ -141,6 +153,7 @@ export class LocalJsonStore {
           ),
         );
       }
+      database.uploads ??= [];
       database.nextIds.admins = Math.max(
         database.nextIds.admins ?? 1,
         database.admins.reduce((nextId, admin) => Math.max(nextId, admin.id + 1), 1),

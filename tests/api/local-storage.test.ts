@@ -154,6 +154,25 @@ describe("local JSON storage fallback", () => {
       "inspecting",
     );
 
+    const uploaded = await client
+      .post("/api/uploads/images")
+      .set("x-csrf-token", csrfToken)
+      .attach("images", Buffer.from("synthetic image"), {
+        filename: "vehicle.png",
+        contentType: "image/png",
+      });
+    expect(uploaded.status).toBe(201);
+    expect(uploaded.body.data[0]).toMatchObject({
+      originalName: "vehicle.png",
+      mimeType: "image/png",
+      url: expect.stringMatching(/^\/uploads\/[a-f0-9]+\.png$/),
+    });
+    const uploadId = uploaded.body.data[0].id as number;
+    const removedUpload = await client
+      .delete(`/api/uploads/${uploadId}`)
+      .set("x-csrf-token", csrfToken);
+    expect(removedUpload.status).toBe(204);
+
     const dashboard = await client.get("/api/dashboard");
     expect(dashboard.body).toMatchObject({
       listings: 0,

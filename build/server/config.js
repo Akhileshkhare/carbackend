@@ -25,6 +25,7 @@ const envSchema = zod_1.z.object({
     MYSQL_USER: zod_1.z.string().default("cocacars_app"),
     MYSQL_PASSWORD: zod_1.z.string().default(""),
     LOCAL_DATA_FILE: zod_1.z.string().default("data/local-db.json"),
+    LOCAL_UPLOAD_DIR: zod_1.z.string().default("data/uploads"),
     LOCAL_ADMIN_EMAIL: zod_1.z.string().email().default("admin@gmail.com"),
     LOCAL_ADMIN_PASSWORD: zod_1.z.string().min(1).default("Admin@123"),
     SEED_DEMO_DATA: zod_1.z.enum(["true", "false"]).default("false"),

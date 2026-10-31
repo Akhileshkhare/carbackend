@@ -34,6 +34,7 @@ function emptyDatabase() {
             repairs: [],
         },
         statusRequests: [],
+        uploads: [],
         nextIds: {},
     };
 }
@@ -93,6 +94,7 @@ class LocalJsonStore {
                 database.records[resource] ??= [];
                 database.nextIds[resource] = Math.max(database.nextIds[resource] ?? 1, database.records[resource].reduce((nextId, record) => Math.max(nextId, record.id + 1), 1));
             }
+            database.uploads ??= [];
             database.nextIds.admins = Math.max(database.nextIds.admins ?? 1, database.admins.reduce((nextId, admin) => Math.max(nextId, admin.id + 1), 1));
             database.sessions = database.sessions.filter((session) => session.expiresAt > Date.now());
             const email = config_1.config.LOCAL_ADMIN_EMAIL.toLowerCase();

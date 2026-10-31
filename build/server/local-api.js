@@ -7,7 +7,10 @@ exports.createLocalApi = createLocalApi;
 exports.initializeLocalApi = initializeLocalApi;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const node_crypto_1 = require("node:crypto");
+const promises_1 = require("node:fs/promises");
+const node_path_1 = __importDefault(require("node:path"));
 const express_1 = __importDefault(require("express"));
+const multer_1 = __importDefault(require("multer"));
 const config_1 = require("./config");
 const errors_1 = require("./errors");
 const local_store_1 = require("./db/local-store");
@@ -20,11 +23,34 @@ const asyncRoute = (handler) => (request, response, next) => {
     void handler(request, response, next).catch(next);
 };
 const dummyPasswordHash = bcryptjs_1.default.hashSync((0, node_crypto_1.randomBytes)(32).toString("hex"), 10);
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const imageUpload = (0, multer_1.default)({
+    storage: multer_1.default.diskStorage({
+        destination: (_request, _file, callback) => {
+            void (0, promises_1.mkdir)(config_1.config.LOCAL_UPLOAD_DIR, { recursive: true })
+                .then(() => callback(null, config_1.config.LOCAL_UPLOAD_DIR))
+                .catch((error) => callback(error, config_1.config.LOCAL_UPLOAD_DIR));
+        },
+        filename: (_request, file, callback) => {
+            const extension = node_path_1.default.extname(file.originalname).toLowerCase();
+            callback(null, `${(0, node_crypto_1.randomBytes)(16).toString("hex")}${extension}`);
+        },
+    }),
+    limits: { files: 8, fileSize: 8 * 1024 * 1024 },
+    fileFilter: (_request, file, callback) => {
+        if (!allowedImageTypes.has(file.mimetype)) {
+            callback(new errors_1.AppError(400, "INVALID_IMAGE_TYPE", "Only JPG, PNG, and WebP images are supported."));
+            return;
+        }
+        callback(null, true);
+    },
+});
 function currentUser(request) {
-    if (!request.authUser) {
+    const authUser = request.authUser;
+    if (!authUser) {
         throw new errors_1.AppError(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
-    return request.authUser;
+    return authUser;
 }
 function validResource(value) {
     if (!(0, resources_1.isResource)(value)) {
@@ -182,10 +208,52 @@ function createLocalApi(loginLimiter, store = local_store_1.localStore) {
                 throw new errors_1.AppError(403, "CSRF_INVALID", "The request could not be verified. Refresh and try again.");
             }
         }
-        request.authUser = (0, local_store_1.localAdminUser)(session.admin);
-        request.authCsrfToken = session.session.csrfToken;
-        request.authSessionToken = rawId;
+        request.authUser =
+            (0, local_store_1.localAdminUser)(session.admin);
+        const authRequest = request;
+        authRequest.authCsrfToken = session.session.csrfToken;
+        authRequest.authSessionToken = rawId;
         next();
+    }));
+    api.post("/uploads/images", imageUpload.array("images", 8), asyncRoute(async (request, response) => {
+        const user = currentUser(request);
+        const files = request.files ?? [];
+        if (!files.length) {
+            throw new errors_1.AppError(400, "NO_IMAGES", "Select at least one image to upload.");
+        }
+        const uploads = await store.update((database) => {
+            database.uploads ??= [];
+            return files.map((file) => {
+                const upload = {
+                    id: store.nextId(database, "uploads"),
+                    filename: file.filename,
+                    originalName: file.originalname.slice(0, 255),
+                    mimeType: file.mimetype,
+                    size: file.size,
+                    uploadedBy: user.id,
+                    createdAt: new Date().toISOString(),
+                };
+                database.uploads.push(upload);
+                return {
+                    ...upload,
+                    url: `/uploads/${encodeURIComponent(file.filename)}`,
+                };
+            });
+        });
+        response.status(201).json({ data: uploads });
+    }));
+    api.delete("/uploads/:id", asyncRoute(async (request, response) => {
+        const user = currentUser(request);
+        const id = positiveId(request.params.id, "Upload ID");
+        const upload = await store.get((database) => database.uploads?.find((item) => item.id === id));
+        if (!upload || (upload.uploadedBy !== user.id && user.role !== "admin")) {
+            throw new errors_1.AppError(404, "NOT_FOUND", "The uploaded image was not found.");
+        }
+        await store.update((database) => {
+            database.uploads = (database.uploads ?? []).filter((item) => item.id !== id);
+        });
+        await (0, promises_1.unlink)(node_path_1.default.join(config_1.config.LOCAL_UPLOAD_DIR, upload.filename)).catch(() => undefined);
+        response.status(204).end();
     }));
     api.post("/demo-data/seed", asyncRoute(async (request, response) => {
         if (currentUser(request).role !== "admin") {
@@ -194,11 +262,14 @@ function createLocalApi(loginLimiter, store = local_store_1.localStore) {
         await (0, demo_data_1.seedLocalDemoData)(store);
         response.json({ message: "Synthetic demo data is ready." });
     }));
-    api.get("/auth/me", (request, response) => response.json({
-        user: currentUser(request),
-        csrfToken: request.authCsrfToken ?? "",
-        sessionToken: request.authSessionToken ?? (0, security_1.bearerSessionToken)(request) ?? "",
-    }));
+    api.get("/auth/me", (request, response) => {
+        const authRequest = request;
+        response.json({
+            user: currentUser(request),
+            csrfToken: authRequest.authCsrfToken ?? "",
+            sessionToken: authRequest.authSessionToken ?? (0, security_1.bearerSessionToken)(request) ?? "",
+        });
+    });
     api.put("/auth/profile", asyncRoute(async (request, response) => {
         const user = currentUser(request);
         const input = validation_1.profileUpdateSchema.parse(request.body);

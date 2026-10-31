@@ -192,6 +192,7 @@ export function createApp(
     app.get("/health", (_request, response) =>
       response.json({ status: "ok" }),
     );
+    app.use("/uploads", express.static(config.LOCAL_UPLOAD_DIR));
     app.use("/api", createLocalApi(loginLimiter, localStore));
     app.use("/api", notFound);
     app.use(notFound);

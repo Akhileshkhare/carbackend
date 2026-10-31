@@ -128,6 +128,10 @@ const inspectionSchema = zod_1.z
     assigned_to: id.nullable().optional(),
     scheduled_at: zod_1.z.string().datetime().nullable().optional(),
     notes: optionalText(10000),
+    pdi_data: zod_1.z
+        .record(zod_1.z.string().trim().max(2000))
+        .refine((value) => Object.keys(value).length <= 180)
+        .default({}),
 })
     .strict();
 const qualitySchema = zod_1.z

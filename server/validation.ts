@@ -136,7 +136,7 @@ const inspectionSchema = z
     scheduled_at: z.string().datetime().nullable().optional(),
     notes: optionalText(10000),
     pdi_data: z
-      .record(z.string().trim().max(500))
+      .record(z.string().trim().max(2000))
       .refine((value) => Object.keys(value).length <= 180)
       .default({}),
   })
